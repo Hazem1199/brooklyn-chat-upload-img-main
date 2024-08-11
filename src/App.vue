@@ -59,14 +59,11 @@
             style="position: relative; cursor: pointer"
           >
             <span class="isLoggin" v-show="user.isLoggedIn == true"></span>
-            <span
-              class="isOpen"
-              v-show="state.isOpen == false && state.to !== user.id"
-            ></span>
+            <!-- Apply isOpen class based on Firebase isOpen status -->
+            <span :class="{ isOpen: user.isOpen == false }"></span>
             <img
               v-if="user.img"
               class="user-icon"
-              v-show="user.img"
               :src="user.img"
               alt="User profile image"
             />
@@ -166,7 +163,7 @@ import {
   uploadBytes,
   getDownloadURL,
 } from "firebase/storage";
-import { Howl } from "howler";
+// import { Howl } from "howler";
 import db from "./db";
 
 export default {
@@ -182,19 +179,21 @@ export default {
       messages: [],
       users: [],
       img: null,
-      isLoggedIn: null,
+      isLoggedIn: false,
       typing: null,
       to: null,
       currentRoom: null,
       otherUserTyping: null,
       isOpen: false,
+      unreadMessages: new Set(), // Tracks IDs of users with unread messages
     });
 
     const isSidebarCollapsed = ref(false);
 
-    const notificationSound = new Howl({
-      src: ["path/to/notification.mp3"],
-    });
+    // const notificationSound = new Howl({
+    //   src: ["path/to/notification.mp3"],
+    //   volume: 0.5,
+    // });
 
     const login = () => {
       if (inputLogin.value) {
@@ -266,12 +265,15 @@ export default {
         img: state.img,
         to: state.to,
         body: inputMessage.value,
-        isOpen: state.isOpen,
+        isOpen: false, // Mark the message as new/unread
       };
-      console.log(message);
       messagesRef.push(message);
+
+      // Update the recipient's isOpen status in Firebase to false
+      const recipientUserRef = db.database().ref("users/" + state.to);
+      recipientUserRef.update({ isOpen: false });
+
       inputMessage.value = "";
-      state.open = false;
       handleTypingStop();
     };
 
@@ -321,20 +323,6 @@ export default {
       popup.document.body.appendChild(img);
     };
 
-    const createPrivateRoom = (user) => {
-      const auth = getAuth();
-      const currentUser = auth.currentUser;
-      if (currentUser) {
-        const roomId = [currentUser.uid, user.id].sort().join("-");
-        state.currentRoom = roomId;
-        console.log(state.currentRoom);
-        state.to = user.id;
-        // state.isOpen = true;
-        loadMessages(roomId);
-        listenForTyping(roomId);
-      }
-    };
-
     const loadMessages = (roomId) => {
       const messagesRef = db.database().ref("messages/" + roomId);
       messagesRef.on("value", (snapshot) => {
@@ -348,19 +336,44 @@ export default {
             to: data[key].to,
             body: data[key].body,
             imageUrl: data[key].imageUrl,
+            isOpen: data[key].isOpen,
           });
         });
 
         if (state.messages.length < messages.length) {
           const lastMessage = messages[messages.length - 1];
           if (lastMessage.username !== state.username) {
-            notificationSound.play();
+            // Add to unread messages if not in the current room
+            if (state.currentRoom !== roomId) {
+              state.unreadMessages.add(lastMessage.to); // Track the user with unread messages
+            }
           }
         }
 
-        state.messages = messages;
-        scrollToBottom();
+        // Update messages only if they belong to the current room
+        if (state.currentRoom === roomId) {
+          state.messages = messages;
+          scrollToBottom();
+        }
       });
+    };
+
+    const createPrivateRoom = (user) => {
+      const roomId = [getAuth().currentUser.uid, user.id].sort().join("-");
+
+      if (state.currentRoom !== roomId) {
+        state.currentRoom = roomId;
+        if (getAuth().currentUser.uid === user.id) {
+          state.to = getAuth().currentUser.uid;
+        }
+
+        // Mark the chat as read/open by setting isOpen to true in Firebase
+        const currentUserRef = db.database().ref("users/" + user.id);
+        currentUserRef.update({ isOpen: true });
+
+        loadMessages(roomId);
+        listenForTyping(roomId);
+      }
     };
 
     const listenForTyping = (roomId) => {
@@ -428,6 +441,7 @@ export default {
           username: data.username,
           img: data.img,
           isLoggedIn: data.isLoggedIn,
+          isOpen: data.isOpen || false, // Initialize isOpen from Firebase
         });
       });
 
@@ -440,11 +454,20 @@ export default {
             username: data.username,
             img: data.img,
             isLoggedIn: data.isLoggedIn,
+            isOpen: data.isOpen || false, // Update isOpen from Firebase
           };
         }
       });
 
       scrollToBottom();
+    });
+
+    window.addEventListener("blur", () => {
+      state.windowFocused = false;
+    });
+    window.addEventListener("focus", () => {
+      state.windowFocused = true;
+      state.unreadMessages.clear(); // Optionally clear all unread flags when the window regains focus
     });
 
     return {
@@ -1004,6 +1027,34 @@ footer input {
 
   footer input {
     font-size: 0.8rem;
+  }
+}
+
+.red-flag {
+  position: absolute;
+  top: 5px;
+  left: 5px;
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background-color: red;
+  animation: pulse 1s infinite;
+}
+
+@keyframes pulse {
+  0% {
+    transform: scale(1);
+    opacity: 1;
+  }
+
+  50% {
+    transform: scale(1.2);
+    opacity: 0.7;
+  }
+
+  100% {
+    transform: scale(1);
+    opacity: 1;
   }
 }
 </style>
