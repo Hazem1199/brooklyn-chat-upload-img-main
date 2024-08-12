@@ -163,7 +163,7 @@ import {
   uploadBytes,
   getDownloadURL,
 } from "firebase/storage";
-// import { Howl } from "howler";
+import { Howl } from "howler";
 import db from "./db";
 
 export default {
@@ -190,10 +190,12 @@ export default {
 
     const isSidebarCollapsed = ref(false);
 
-    // const notificationSound = new Howl({
-    //   src: ["path/to/notification.mp3"],
-    //   volume: 0.5,
-    // });
+    const notificationSound = new Howl({
+      src: [
+        `https://www.soundsnap.com/bell_accent_notification_ding_with_thump_achievement_message_stomp_2`,
+      ],
+      volume: 0.5,
+    });
 
     const login = () => {
       if (inputLogin.value) {
@@ -346,6 +348,7 @@ export default {
             // Add to unread messages if not in the current room
             if (state.currentRoom !== roomId) {
               state.unreadMessages.add(lastMessage.to); // Track the user with unread messages
+              notificationSound.play();
             }
           }
         }
@@ -775,6 +778,7 @@ header h2 {
   display: flex;
   flex-grow: 1;
   overflow: hidden;
+  max-height: 90%;
   /* padding-top: 70px; */
 }
 
@@ -785,11 +789,13 @@ header h2 {
   transition: width 0.3s, background-color 0.3s;
   width: 25%;
   overflow-y: auto;
+  height: calc(90vh - 85px);
   margin-right: 7px;
 }
 
 .user-box.collapsed {
   width: 9%;
+  height: calc(90vh - 130px);
 }
 
 .user-box .message-box {
@@ -824,6 +830,23 @@ header h2 {
 
 .user-box.collapsed .message-box .message-box {
   display: none;
+}
+
+.user-box::-webkit-scrollbar-track {
+  border-radius: 10px;
+  background-color: transparent;
+}
+
+.user-box::-webkit-scrollbar {
+  width: 4px;
+  background-color: transparent;
+  border-radius: 10px;
+}
+
+.user-box::-webkit-scrollbar-thumb {
+  border-radius: 10px;
+  background-color: rgba(66, 69, 129, 0.3);
+  transition: background-color 0.3s;
 }
 
 .chat-box {
