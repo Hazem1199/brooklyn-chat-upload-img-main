@@ -795,7 +795,7 @@ header h2 {
 
 .user-box.collapsed {
   width: 9%;
-  height: calc(90vh - 130px);
+  height: calc(90vh - 85px);
 }
 
 .user-box .message-box {
