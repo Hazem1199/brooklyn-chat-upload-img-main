@@ -20,14 +20,14 @@
       </form>
     </div>
     <div class="chat" v-else>
-      <header>
+      <header id="header">
         <div class="header-user">
           <button class="sidebar-toggle" @click="toggleSidebar">☰</button>
-          <div class="user-icon">
+          <div class="user-icon" v-if="state.toImg">
             <img
               class="user-icon"
-              v-if="state.img"
-              :src="state.img"
+              v-if="state.toImg"
+              :src="state.toImg"
               alt="User profile image"
             />
           </div>
@@ -38,16 +38,27 @@
               justify-content: center;
             "
           >
-            <h2>{{ state.username }}</h2>
+            <h2>{{ state.toUserName }}</h2>
             <div
               v-if="state.currentRoom && state.otherUserTyping"
               class="typing-indicator"
             >
-              {{ state.otherUserTyping }} is typing...
+              typing...
             </div>
           </div>
         </div>
-        <div class="header-logout" @click="logout">Logout</div>
+        <img
+          class="user-icon"
+          v-if="state.img"
+          :src="state.img"
+          alt="User profile image"
+        />
+        <div class="header-logout" @click="logout">
+          <i
+            style="font-size: 1.2rem; font-weight: bolder"
+            class="bi bi-box-arrow-right"
+          ></i>
+        </div>
       </header>
       <div class="main-box">
         <main class="user-box" :class="{ collapsed: isSidebarCollapsed }">
@@ -60,7 +71,7 @@
           >
             <span class="isLoggin" v-show="user.isLoggedIn == true"></span>
             <!-- Apply isOpen class based on Firebase isOpen status -->
-            <span :class="{ isOpen: user.isOpen == false }"></span>
+            <span :class="{ isOpen: user.isOpen == false }"> </span>
             <img
               v-if="user.img"
               class="user-icon"
@@ -69,6 +80,7 @@
             />
             <div v-if="!isSidebarCollapsed && user.username">
               {{ user.username.split(" ")[0] }}
+              <!-- {{ user.id + " - " + state.from }} -->
             </div>
           </div>
         </main>
@@ -182,6 +194,9 @@ export default {
       isLoggedIn: false,
       typing: null,
       to: null,
+      toImg: null,
+      toUserName: null,
+      from: null,
       currentRoom: null,
       otherUserTyping: null,
       isOpen: false,
@@ -232,7 +247,7 @@ export default {
         const user = result.user;
         state.username = user.displayName;
         state.img = user.photoURL;
-        state.to = user.uid;
+        state.from = user.uid;
         state.isLoggedIn = true;
         updateUserStatus(state.isLoggedIn, user.uid);
       } catch (error) {
@@ -265,14 +280,15 @@ export default {
       const message = {
         username: state.username,
         img: state.img,
-        to: state.to,
+        from: state.from,
         body: inputMessage.value,
+        to: state.to,
         isOpen: false, // Mark the message as new/unread
       };
       messagesRef.push(message);
 
       // Update the recipient's isOpen status in Firebase to false
-      const recipientUserRef = db.database().ref("users/" + state.to);
+      const recipientUserRef = db.database().ref("users/" + state.from);
       recipientUserRef.update({ isOpen: false });
 
       inputMessage.value = "";
@@ -363,11 +379,13 @@ export default {
 
     const createPrivateRoom = (user) => {
       const roomId = [getAuth().currentUser.uid, user.id].sort().join("-");
-
+      state.to = user.id;
+      state.toUserName = user.username;
+      state.toImg = user.img;
       if (state.currentRoom !== roomId) {
         state.currentRoom = roomId;
         if (getAuth().currentUser.uid === user.id) {
-          state.to = getAuth().currentUser.uid;
+          state.from = getAuth().currentUser.uid;
         }
 
         // Mark the chat as read/open by setting isOpen to true in Firebase
@@ -722,6 +740,14 @@ header {
   color: #fff;
   background-color: #002768;
   border-bottom: 1px solid #001a4d;
+}
+
+.header-logout {
+  margin-left: 10px;
+}
+
+#header .header-user {
+  flex-grow: 1;
 }
 
 header h2 {
